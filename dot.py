@@ -1,12 +1,28 @@
 # plan
 # 1, collect choice response and reaction time
 # 2, add EEG marker
-
 from psychopy import core, monitors
 from psychopy import visual, event, data, logging
-import random, datetime, time
+import random, datetime
 from psychopy.hardware import keyboard
 import numpy as np
+import time
+global io, parallel_port
+#EEG Marker
+"""
+try:
+    from ctypes import windll
+    io = windll.dlportio # requires dlportio.dll !!!
+    parallel_port = 0x378
+except:
+    print('The parallel port couldn\'t be opened')
+
+ledOn = 0
+try:
+    io.DlPortWritePortUchar(parallel_port, ledOn)
+except:
+    print('Failed to send trigger!')"""
+
 
 # set monitors
 mon = monitors.Monitor('hospital6')
@@ -61,6 +77,14 @@ for iTrial in range(nTrials):  # loop trials
     core.wait(5)
     # show static image [1 2] s
 
+    """ try:
+        io.DlPortWritePortUchar(parallel_port, ledOn)
+    except:
+        print('Failed to send trigger!')
+    print("ledOn: {:#010b}".format(ledOn))
+    time.sleep(1)
+    ledOn = ledOn << 1  """
+
     # moving dots 0.5s
     if cond[iTrial] == 0:#left
         dirRange[iTrial] = 0
@@ -104,8 +128,10 @@ for iTrial in range(nTrials):  # loop trials
         print
         "other"
         p = 0
-    dataFile.write("{}, {}, {}\n".format(x, timeAfter - timeBefore, p))
+    dataFile.write("{}, {}, {}\n".format(direction[iTrial], timeAfter - timeBefore, p))
     # print x, timeAfter-timeBefore, p
 
 myWin.close()
 core.quit()
+
+
