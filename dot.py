@@ -1,135 +1,155 @@
-# plan
-# 1, collect choice response and reaction time
-# 2, add EEG marker
 from psychopy import core, monitors
-from psychopy import visual, event, data, logging
-import random, datetime
-from psychopy.hardware import keyboard
+from psychopy import visual, event, logging
+from psychopy.tools.coordinatetools import pol2cart
 import numpy as np
-import time
-global io, parallel_port
-#EEG Marker
-"""
-try:
-    from ctypes import windll
-    io = windll.dlportio # requires dlportio.dll !!!
-    parallel_port = 0x378
-except:
-    print('The parallel port couldn\'t be opened')
+import random
+import time,csv
 
-ledOn = 0
-try:
-    io.DlPortWritePortUchar(parallel_port, ledOn)
-except:
-    print('Failed to send trigger!')"""
-
-
-# set monitors
-mon = monitors.Monitor('hospital6')
-mon.setDistance(57)
-mon.setSizePix([1920, 1080])
-mon.setWidth(52.71)
-
-# create a window
-# assume
-myWin = visual.Window([1920, 1080], units="deg", allowGUI=False, monitor=mon,winType='pyglet')
-logging.console.setLevel(logging.WARNING)  # default, only Errors and Warnings are shown on the console
-# run  specific
-fileName = "data/dot" + datetime.datetime.now().strftime("%Y-%m-%dT%H_%M_%S") + ".dat"
-dataFile = open(fileName, 'w')  # note that MS Excel has only ASCII .csv, other spreadsheets do support UTF-8
-dataFile.write("#{}, {}, {}\n".format("position", "time", "response"))
-
-instruction = visual.TextStim(myWin,
-                              text='Press ← if you see an left motion  ' \
-                                   'Press → if you see the right one. Press Escape to stop the ' \
-                                   'experiment, or continue to the end. It takes about a minute.'.decode(
-                                  "utf-8")
-                              )
-
-range = [0, 320]
-direction = [-1, 1]  # -1,left;1, right
+r_random = [0,320]
+direction = [-1, 1]
 nTrialsPerCond = 50
-nTrials = nTrialsPerCond * len(range) * len(direction)
-
-# setup keyboard
-kb = keyboard.Keyboard()
-kb.clock.reset()
-
-fixation = visual.GratingStim(win=myWin, size=0.5, pos=[0, 0], sf=0, rgb=-1)
-
-dotsLeft = visual.DotStim(win=myWin, fieldSize=300, fieldShape='circle', coherence=100, dotSize=20, dir=0, speed=2)
-dotsRight = visual.DotStim(win=myWin, fieldSize=300, fieldShape='circle', coherence=100, dotSize=20, dir=180, speed=2)
-dotsBoundary = visual.DotStim(win=myWin, fieldSize=300, fieldShape='circle', coherence=100, dotSize=20, dir=320, speed=2)
-randomIndex = 0
-dotsRandom = visual.DotStim(win=myWin, fieldSize=300, fieldShape='circle', coherence=100, dotSize=20, dir=randomIndex, speed=2)
-
+nTrials = nTrialsPerCond * len(r_random) * len(direction)
 cond = np.arange(nTrials)
-cond = cond %(len(range) * len(direction))
-
+cond = cond %(len(r_random) * len(direction))
 direction = np.empty(nTrials)
 dirRange = np.empty(nTrials)
 direction_random = np.empty(nTrials)
 
+mon = monitors.Monitor('hospital6')
+mon.setDistance(57)
+mon.setSizePix([1920, 1080])
+mon.setWidth(52.71)
+myWin = visual.Window([600, 600], units='pixels',monitor=mon)
+fixation1 = visual.GratingStim(win=myWin, size=0.5, pos=[0,0], sf=0, rgb=-1)
+
+dotsLeftstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=0, speed=0, dotLife=-1)
+dotsLeft = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=0, speed=2, dotLife=-1)
+
+
+def stimulus_left():
+    dotsRightstop.draw()
+    myWin.flip()
+    core.wait(3)
+    for i in range(500):
+      dotsLeft.draw()
+      myWin.flip()
+
+dotsRightstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=180, speed=0, dotLife=-1)
+dotsRight = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=180, speed=2, dotLife=-1)
+
+def stimulus_right():
+   dotsRightstop.draw()
+   myWin.flip()
+   core.wait(3)
+   for i in range(500):
+      dotsRight.draw()
+      myWin.flip()
+
+random_index = 0
+dotsRandomstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize =10, dir=random_index, speed=0, dotLife=-1)
+dotsRandom = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize =10, dir=random_index, speed=2, dotLife=-1)
+
+def stimulus_random():
+   dotsRandomstop.draw()
+   myWin.flip()
+   core.wait(3)
+   for i in range(500):
+      dotsRandom.draw()
+      myWin.flip()
+
+
+def fixation():
+    fixation1.draw()
+    myWin.flip()
+    core.wait(3)
+
+def stimulus_chaos():
+    nDots = 50
+    # The maximum speed of the dots
+    maxSpeed = 10
+    # The size of the field. Note that you also need to modify the `fieldSize`
+    # keyword that is passed to `ElementArrayStim` below, due to (apparently) a bug
+    # in PsychoPy
+    fieldSize = 200
+    # The size of the dots
+    dotSize = 10
+    # The number of frames
+    nFrames = 1000
+
+    # Initial parameters
+    dotsTheta = np.random.rand(nDots) * 360
+    dotsRadius = (np.random.rand(nDots) ** 0.5) * 200
+    speed = np.random.rand(nDots) * maxSpeed
+
+    # Create the stimulus array
+    dots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle', \
+                                   elementMask='circle', nElements=nDots, sizes=dotSize, units='pix', \
+                                   fieldSize=10000)
+
+    # Walk through each frame, update the dot positions and draw it
+    for frameN in range(100):
+        # update radius
+          dotsRadius = (dotsRadius + speed)
+        # random radius where radius too large
+          outFieldDots = (dotsRadius >= fieldSize)
+          dotsRadius[outFieldDots] = np.random.rand(sum(outFieldDots)) * fieldSize
+          dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)
+          dots.setXYs(np.array([dotsX, dotsY]).transpose())
+          dots.draw()
+          myWin.flip()
+
+
+
 for iTrial in range(nTrials):  # loop trials
     # draw fixation
-    fixation.draw()
-    myWin.flip()
-    core.wait(5)
+    fixation()
     # show static image [1 2] s
-
-    """ try:
-        io.DlPortWritePortUchar(parallel_port, ledOn)
-    except:
-        print('Failed to send trigger!')
-    print("ledOn: {:#010b}".format(ledOn))
-    time.sleep(1)
-    ledOn = ledOn << 1  """
-
     # moving dots 0.5s
+
     if cond[iTrial] == 0:#left
-        dirRange[iTrial] = 0
-        direction[iTrial] = 1
-        dotsLeft.draw()
+        direction_random[iTrial] = 0
+        stimulus_left()
 
     elif cond[iTrial] == 1:
-        dirRange[iTrial] = 0
-        direction[iTrial] = 2
-        dotsRight.draw()
-
-    elif cond[iTrial] == 2:
-        dirRange[iTrial] = 320
-        direction[iTrial] = 1
-        dotsBoundary.draw()
-
+        stimulus_right()
+        direction_random[iTrial] = 180
     elif cond[iTrial] == 3:
-        dirRange[iTrial] = 320
-        direction[iTrial] = 2
+        stimulus_chaos()
+        direction_random[iTrial] = -1
+    elif cond[iTrial] == 4:
         randomIndex = random.randrange(320)
         direction_random[iTrial] = randomIndex
         dotsRandom.draw()
-    # collect responses
+
     timeBefore = time.time()
     presses = event.waitKeys(3)  # wait a maximum of 3 seconds for keyboard input
     timeAfter = time.time()
-    # handle keypress
+
     if not presses:
         # no keypress
         print
         "none"
-        p = 0
+        choice = 0
     elif presses[0] == "left":
-        p = -1
+        choice = -1
     elif presses[0] == "right":
-        p = 1
+        choice = 1
     elif presses[0] == "escape":
         break
     else:
         # some other keypress
         print
         "other"
-        p = 0
-    dataFile.write("{}, {}, {}\n".format(direction[iTrial], timeAfter - timeBefore, p))
-    # print x, timeAfter-timeBefore, p
+        choice = 0
+
+    reaction_time = timeAfter - timeBefore
+
+    with open('resultdata.csv', 'w', newline='') as csvfile:
+        fieldnames = ['index_trial', 'condition', 'choice','reaction_time']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow({'index_trial': iTrial, 'condition': direction_random[iTrial],
+                         'choice': choice,'reaction_time':reaction_time })
 
 myWin.close()
 core.quit()
