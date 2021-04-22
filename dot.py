@@ -14,10 +14,11 @@ nTrialsPerCond = 50
 nTrials = nTrialsPerCond * len(r_random) * len(direction)
 cond = np.arange(nTrials)
 cond = cond %(len(r_random) * len(direction))
+np.random.shuffle(cond)
 direction = np.empty(nTrials)
 dirRange = np.empty(nTrials)
 direction_random = np.empty(nTrials)
-
+choice = np.empty(nTrials)
 mon = monitors.Monitor('hospital6')
 mon.setDistance(57)
 mon.setSizePix([1920, 1080])
@@ -32,8 +33,8 @@ dotsLeft = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fi
 def stimulus_left():
     dotsRightstop.draw()
     myWin.flip()
-    core.wait(3)
-    for i in range(500):
+    core.wait(2)
+    for i in range(300):
       dotsLeft.draw()
       myWin.flip()
 
@@ -43,8 +44,8 @@ dotsRight = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, f
 def stimulus_right():
    dotsRightstop.draw()
    myWin.flip()
-   core.wait(3)
-   for i in range(500):
+   core.wait(2)
+   for i in range(300):
       dotsRight.draw()
       myWin.flip()
 
@@ -59,8 +60,8 @@ def stimulus_random(random_index):
 
     dotsRandomstop.draw()
     myWin.flip()
-    core.wait(3)
-    for i in range(500):
+    core.wait(2)
+    for i in range(300):
       dotsRandom.draw()
       myWin.flip()
 
@@ -68,7 +69,7 @@ def stimulus_random(random_index):
 def fixation():
     fixation1.draw()
     myWin.flip()
-    core.wait(3)
+    core.wait(1)
 
 def stimulus_chaos():
     nDots = 50
@@ -112,47 +113,38 @@ with f:
 
 for iTrial in range(nTrials):  # loop trials
     # draw fixation
+
+    fixation()
     kb.clock.reset()  # timer (re)starts
     trialClock.reset()
 
-    while trialClock.getTime() < 15:
-
-      presses = kb.getKeys( keyList=['right', 'left' , 'q'] )
-      fixation()
-    # show static image [1 2] s
-    # moving dots 0.5s
-
-      if cond[iTrial] == 0:#left
-
+    if cond[iTrial] == 0:#left
         direction[iTrial] = 0
         stimulus_left()
-
-      elif cond[iTrial] == 1:
+    elif cond[iTrial] == 1:
         stimulus_right()
         direction[iTrial] = 180
-
-      elif cond[iTrial] == 3:
+    elif cond[iTrial] == 3:
         stimulus_chaos()
         direction[iTrial] = -1
-
-      elif cond[iTrial] == 2:
+    elif cond[iTrial] == 2:
         random_index = random.randrange(320)
         direction[iTrial] = random_index
         stimulus_random(random_index)
 
-      if (len(presses) > 0):
-          reaction_time = presses[0].rt
-          if presses[0] == "left":
-             choice = -1
-          elif presses[0] == "right":
-             choice = 1
-          elif presses[0] == "q":
-             core.quit()
+    presses = event.waitKeys(keyList=["left", "right", "q"], timeStamped=trialClock)
+    if presses[0] == "left":
+        choice[iTrial] = -1
+    elif presses[0] == "right":
+        choice[iTrial] = 1
+    elif presses[0] == "q":
+        core.quit()
+    reaction_time = trialClock.getLastResetTime()
 
-          f = open('numbers2.csv', 'a')
-          with f:
-             writer = csv.writer(f)
-             writer.writerow([iTrial,direction_random[iTrial], choice, reaction_time])
+    f = open('numbers2.csv', 'a')
+    with f:
+         writer = csv.writer(f)
+         writer.writerow([iTrial,direction_random[iTrial], choice[iTrial], reaction_time])
 
 
 myWin.close()
