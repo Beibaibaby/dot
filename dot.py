@@ -4,7 +4,10 @@ from psychopy.tools.coordinatetools import pol2cart
 import numpy as np
 import random
 import time,csv
+from psychopy.hardware import keyboard
 
+kb = keyboard.Keyboard()
+trialClock = core.Clock()
 r_random = [0,320]
 direction = [-1, 1]
 nTrialsPerCond = 50
@@ -46,14 +49,18 @@ def stimulus_right():
       myWin.flip()
 
 random_index = 0
-dotsRandomstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize =10, dir=random_index, speed=0, dotLife=-1)
-dotsRandom = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize =10, dir=random_index, speed=2, dotLife=-1)
 
-def stimulus_random():
-   dotsRandomstop.draw()
-   myWin.flip()
-   core.wait(3)
-   for i in range(500):
+def stimulus_random(random_index):
+    dotsRandomstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle',
+                                    coherence=1, dotSize=10, dir=random_index, speed=0, dotLife=-1)
+    dotsRandom = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1,
+                                dotSize=10, dir=random_index, speed=2, dotLife=-1)
+
+
+    dotsRandomstop.draw()
+    myWin.flip()
+    core.wait(3)
+    for i in range(500):
       dotsRandom.draw()
       myWin.flip()
 
@@ -98,60 +105,55 @@ def stimulus_chaos():
           dots.draw()
           myWin.flip()
 
-
+f = open('numbers2.csv', 'w')
+with f:
+    writer = csv.writer(f)
+    writer.writerow(['index_trial', 'condition', 'choice','reaction_time'])
 
 for iTrial in range(nTrials):  # loop trials
     # draw fixation
-    fixation()
+    kb.clock.reset()  # timer (re)starts
+    trialClock.reset()
+
+    while trialClock.getTime() < 15:
+
+      presses = kb.getKeys( keyList=['right', 'left' , 'q'] )
+      fixation()
     # show static image [1 2] s
     # moving dots 0.5s
 
-    if cond[iTrial] == 0:#left
-        direction_random[iTrial] = 0
+      if cond[iTrial] == 0:#left
+
+        direction[iTrial] = 0
         stimulus_left()
 
-    elif cond[iTrial] == 1:
+      elif cond[iTrial] == 1:
         stimulus_right()
-        direction_random[iTrial] = 180
-    elif cond[iTrial] == 3:
+        direction[iTrial] = 180
+
+      elif cond[iTrial] == 3:
         stimulus_chaos()
-        direction_random[iTrial] = -1
-    elif cond[iTrial] == 4:
-        randomIndex = random.randrange(320)
-        direction_random[iTrial] = randomIndex
-        dotsRandom.draw()
+        direction[iTrial] = -1
 
-    timeBefore = time.time()
-    presses = event.waitKeys(3)  # wait a maximum of 3 seconds for keyboard input
-    timeAfter = time.time()
+      elif cond[iTrial] == 2:
+        random_index = random.randrange(320)
+        direction[iTrial] = random_index
+        stimulus_random(random_index)
 
-    if not presses:
-        # no keypress
-        print
-        "none"
-        choice = 0
-    elif presses[0] == "left":
-        choice = -1
-    elif presses[0] == "right":
-        choice = 1
-    elif presses[0] == "escape":
-        break
-    else:
-        # some other keypress
-        print
-        "other"
-        choice = 0
+      if (len(presses) > 0):
+          reaction_time = presses[0].rt
+          if presses[0] == "left":
+             choice = -1
+          elif presses[0] == "right":
+             choice = 1
+          elif presses[0] == "q":
+             core.quit()
 
-    reaction_time = timeAfter - timeBefore
+          f = open('numbers2.csv', 'a')
+          with f:
+             writer = csv.writer(f)
+             writer.writerow([iTrial,direction_random[iTrial], choice, reaction_time])
 
-    with open('resultdata.csv', 'w', newline='') as csvfile:
-        fieldnames = ['index_trial', 'condition', 'choice','reaction_time']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerow({'index_trial': iTrial, 'condition': direction_random[iTrial],
-                         'choice': choice,'reaction_time':reaction_time })
 
 myWin.close()
 core.quit()
-
-
