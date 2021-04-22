@@ -5,6 +5,15 @@ import numpy as np
 import random
 import time,csv
 from psychopy.hardware import keyboard
+from egi import simple as egi
+
+"""""
+ms_localtime = egi.ms_localtime
+ns = egi.Netstation()
+ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
+ns.BeginSession()
+ns.sync()
+ns.StartRecording()"""
 
 kb = keyboard.Keyboard()
 trialClock = core.Clock()
@@ -145,7 +154,8 @@ for iTrial in range(nTrials):  # loop trials
     with f:
          writer = csv.writer(f)
          writer.writerow([iTrial,direction_random[iTrial], choice[iTrial], reaction_time])
-
+  # ns.sync()
+  # ns.SendSimpleTimestampedEvent(b'0051')
 
 myWin.close()
 core.quit()
