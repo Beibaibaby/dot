@@ -7,7 +7,16 @@ import time,csv
 from psychopy.hardware import keyboard
 from egi import simple as egi
 
-"""""
+#To send markers, we can use egi package or use pylsl package
+"""
+from pylsl import StreamInfo, StreamOutlet
+info = StreamInfo(name='my_stream_name', type='Markers', channel_count=1,
+                  channel_format='int32', source_id='uniqueid12345')
+# Initialize the stream.
+outlet = StreamOutlet(info)
+"""
+
+"""
 ms_localtime = egi.ms_localtime
 ns = egi.Netstation()
 ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
@@ -110,7 +119,7 @@ def stimulus_chaos():
         # random radius where radius too large
           outFieldDots = (dotsRadius >= fieldSize)
           dotsRadius[outFieldDots] = np.random.rand(sum(outFieldDots)) * fieldSize
-          dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)
+          dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)#坐标转换
           dots.setXYs(np.array([dotsX, dotsY]).transpose())
           dots.draw()
           myWin.flip()
