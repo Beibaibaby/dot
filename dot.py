@@ -1,11 +1,12 @@
 from psychopy import core, monitors
 from psychopy import visual, event, logging
-from psychopy.tools.coordinatetools import pol2cart
+from psychopy.tools.coordinatetools import pol2cart, cart2pol
+from psychopy.tools import monitorunittools
+from psychopy.visual import circle
 import numpy as np
-import random
-import time,csv
 from psychopy.hardware import keyboard
-from egi import simple as egi
+import pandas as pd
+#from egi import simple as egi
 
 #To send markers, we can use egi package or use pylsl package
 """
@@ -24,179 +25,175 @@ ns.BeginSession()
 ns.sync()
 ns.StartRecording()"""
 
-kb = keyboard.Keyboard()
-trialClock = core.Clock()
-r_random = [0,320]
-direction = [-1, 1]
-nTrialsPerCond = 50
-nTrials = nTrialsPerCond * len(r_random) * len(direction)
-cond = np.arange(nTrials)
-cond = cond %(len(r_random) * len(direction))
-np.random.shuffle(cond)
-direction = np.empty(nTrials)
-dirRange = np.empty(nTrials)
-direction_random = np.empty(nTrials)
-choice = np.empty(nTrials)
+# ================ exp setting ==================
+dirRange = [0,320]
+stimDir= [-1, 1] # -1, left;1, right
+fieldRadius = 10 # in deg
+nTrialsPerCond =  5 
+maxDur =  5 # sec, longest stim duration or a key press comes first
+delayDur = 1 # sec, delay of stim onset afte fixation
+staticDur = [1, 2] # stimulus being static for 1-2s
+speedDeg = 10.0 # deg/sec, shall convert to deg/frame
+dotDensity = 0.6 # dots/deg^2
+dotSize = 0.125 # deg, diameter
+iti = 2 # intertrial interval
+# ======= setup hardwares =======
 mon = monitors.Monitor('hospital6')
-mon.setDistance(57)
+mon.setDistance(57) # View distance cm
 mon.setSizePix([1920, 1080])
-mon.setWidth(52.71)
-myWin = visual.Window([600, 600], units='pixels',monitor=mon, color=(0, 0, 0))
-fixation1 = visual.GratingStim(win=myWin, size=0.5, pos=[0,0], sf=0, rgb=-1)
+mon.setWidth(52.71) # cm
+myWin = visual.Window([1000, 1000], units='deg',monitor=mon, color=(-1, -1, -1), checkTiming=True)
+fps = myWin.getActualFrameRate()
+kb = keyboard.Keyboard() # create kb object
+globalClock = core.Clock() # global Clock
+respClock = core.Clock()
 
-dotsLeftstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=0, speed=0, dotLife=-1)
-dotsLeft = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=0, speed=2, dotLife=-1)
+# let's do some calculation before going further
+speedFrame = speedDeg/fps # how many deg/frame
+speedPixFrame = monitorunittools.deg2pix(speedFrame, mon)
+dotSizePix = monitorunittools.deg2pix(dotSize, mon) # calculate dotSizePix for DotStim object
+nDots = round(np.pi* fieldRadius **2 * dotDensity) # calcuate nDots
+maxFrames = round(maxDur/myWin.monitorFramePeriod)
 
+nTrials = nTrialsPerCond * len(dirRange) * len(stimDir)
+cond = np.arange(nTrials)
+cond = cond %(len(dirRange) * len(stimDir))
+np.random.shuffle(cond)
+direction, stimType, RT, choice, = [np.empty(nTrials) for _ in range(4)]
 
-def stimulus_left():
-    dotsRightstop.draw()
+#  ====== define stimulus components =======
+# define fixation
+fixation = circle.Circle(win=myWin, units='deg', radius=0.25, lineColor=0, fillColor=0)
+# define coherent dots 
+cohDots = visual.DotStim(win=myWin, nDots=nDots, units='deg', fieldSize=[fieldRadius*2, fieldRadius*2], fieldShape='circle', coherence=1, dotSize=dotSizePix, dotLife=-1)
+# Create the stimulus array
+chaosDots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle', \
+                                   elementMask='circle', nElements=nDots, sizes=dotSize, units='deg', \
+                                   fieldSize=[fieldRadius*2, fieldRadius*2]) # note here dotSize is in deg
+ 
+# show left/right coherent dots
+def showCohDots(dir=0): 
+    cohDots.dir=dir # dir=0, right; dir=180, left
+    # show static stim
+    cohDots.speed=0
+    fixation.draw()
+    cohDots.draw()
     myWin.flip()
-    core.wait(2)
-    for i in range(300):
-      dotsLeft.draw()
-      myWin.flip()
-
-dotsRightstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=180, speed=0, dotLife=-1)
-dotsRight = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1, dotSize=10, dir=180, speed=2, dotLife=-1)
-
-def stimulus_right():
-   dotsRightstop.draw()
-   myWin.flip()
-   core.wait(2)
-   for i in range(300):
-      dotsRight.draw()
-      myWin.flip()
-
-random_index = 0
-
-def stimulus_random(random_index):
-    dotsRandomstop = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle',
-                                    coherence=1, dotSize=10, dir=random_index, speed=0, dotLife=-1)
-    dotsRandom = visual.DotStim(win=myWin, nDots=50, units='pixels', fieldSize=200, fieldShape='circle', coherence=1,
-                                dotSize=10, dir=random_index, speed=2, dotLife=-1)
-
-
-    dotsRandomstop.draw()
-    myWin.flip()
-    core.wait(2)
-    for i in range(300):
-      dotsRandom.draw()
-      myWin.flip()
-
-def cart2pol(x, y):
-    rho = np.sqrt(x**2 + y**2)
-    phi = np.arctan2(y, x)
-    return(rho, phi)
-
-def fixation():
-    fixation1.draw()
+    core.wait(np.random.rand()+1) # stay static 1-2s
+    
+    # show moving stim
+    cohDots.speed=speedFrame# reset speed
+    #kb.start() # keyboard start recoding
+    flipStamp = np.empty(maxFrames)
+    for i in range(maxFrames): # 
+        fixation.draw()
+        cohDots.draw()
+        flipStamp[i]=myWin.flip()    
+    #kb.stop() # keyboard stop recoding 
+    return flipStamp
+# show initial Fixation
+def showFixation(): 
+    fixation.draw()
     myWin.flip()
     core.wait(1)
 
-direction=1
-def stimulus_chaos(direction):
-    nDots = 50
-    # The maximum speed of the dots
-    maxSpeed = 10 # 10 is degree, should switch to pixels
-    # The size of the field. Note that you also need to modify the `fieldSize`
-    # keyword that is passed to `ElementArrayStim` below, due to (apparently) a bug
-    # in PsychoPy
-    fieldSize = 200
-    # The size of the dots
-    dotSize = 5
-    # The number of frames
-    nFrames = 1000
-    # Initial parameters
-    dotsTheta = np.random.rand(nDots) * 360
-    dotsRadius = (np.random.rand(nDots) ** 0.5) * fieldSize
-    dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)
-    speed = maxSpeed
-    if direction == 1: # left
+# calculate chaos dots position
+def createChaosStim(dir=0):
+    if dir == -1: # left
         directionRange1 = [-180, -20]
         directionRange2 = [20, 180]
-    elif direction == 2: # right
+    elif dir == 1: # right
         directionRange1 = [-160, 0]
         directionRange2 = [0, 160]
- 
-    # Create the stimulus array
-    dots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle', \
-                                   elementMask='circle', nElements=nDots, sizes=dotSize, units='pixels', \
-                                   fieldSize=500)
 
-    # Walk through each frame, update the dot positions and draw it
-    dir1 = np.random.rand(int(nDots / 2)) * (directionRange1[1] - directionRange1[0]) + directionRange1[0]
-    dir2 = np.random.rand(int(nDots / 2)) * (directionRange2[1] - directionRange2[0]) + directionRange2[0]
+    # Initial parameters
+    dotsTheta = np.random.rand(nDots) * 360 # deg
+    dotsRadius = (np.random.rand(nDots) ** 0.5) * fieldRadius # in deg
+    dotsX, dotsY = pol2cart(dotsTheta, dotsRadius) # in deg
+    XYpos = np.empty((nDots, 2, maxFrames))
+    for iFrame in range(maxFrames):
+        # choose direction
+        dir1 = np.random.rand(int(nDots / 2)) * (directionRange1[1] - directionRange1[0]) + directionRange1[0]
+        dir2 = np.random.rand(int(nDots / 2)) * (directionRange2[1] - directionRange2[0]) + directionRange2[0]
+        dirAll = np.hstack((dir1, dir2))
+        # update position
+        dotsX, dotsY = dotsX + speedFrame * np.cos(dirAll), dotsY + speedFrame*np.sin(dirAll)
+        # convert catesian to polar
+        dotsTheta, dotsRadius = cart2pol(dotsX, dotsY)        
+        outFieldDots = (dotsRadius > fieldRadius) # judge dots outside
+        if outFieldDots.any():
+            dotsRadius[outFieldDots] = np.random.rand(sum(outFieldDots)) * fieldRadius
+            dotsTheta[outFieldDots] = np.random.rand(sum(outFieldDots)) * 360 # deg
+        dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)
+        XYpos[:, 0, iFrame] = dotsX
+        XYpos[:, 1, iFrame] = dotsY
+    
+    return XYpos
 
-    dir = np.hstack((dir1, dir2))
-    np.random.shuffle(dir)
+# show chaos stim
+def showChaosStim(XYpos):
+    nFrame = XYpos.shape[-1]
+    for iFrame in range(nFrame):
+        chaosDots.setXYs(XYpos[:,:,iFrame])
+        chaosDots.draw()
+        myWin.flip()
 
-    for frameN in range(5000):
-        # draw random directions
-      re = frameN % 10
-      while re == 0:
-            dir1 = np.random.rand(int(nDots/2))*(directionRange1[1]-directionRange1[0])+directionRange1[0]
-            dir2 = np.random.rand(int(nDots/2))*(directionRange2[1]-directionRange2[0])+directionRange2[0]
-            dir = np.hstack((dir1, dir2))
+    
 
-      # update position
-      dotsX, dotsY = dotsX + speed*np.cos(dir), dotsY + speed*np.sin(dir)
-      # convert catesian to polar
-      dotsTheta, dotsRadius = cart2pol(dotsX, dotsY)
-      # random radius where radius too large
-
-      outFieldDots = (dotsRadius > fieldSize)
-      dotsRadius[outFieldDots] = np.random.rand(sum(outFieldDots)) * fieldSize
+# ======= connect and setup NetStation====
 
 
-      dotsX, dotsY = pol2cart(dotsTheta, dotsRadius)
-      #坐标转换
-      dots.setXYs(np.array([dotsX, dotsY]).transpose())
-      dots.draw()
-      myWin.flip()
 
 
-f = open('numbers2.csv', 'w')
-with f:
-    writer = csv.writer(f)
-    writer.writerow(['index_trial', 'condition', 'choice','reaction_time'])
-
-"""for iTrial in range(nTrials):  # loop trials
+"""
+# do it!!!
+#  =========== main experiment loop ========
+kb.clock.reset() # reset clock
+wanttoquick = False
+for iTrial in range(nTrials): 
+    
     # draw fixation
+    showFixation()
+    # delay
+    core.wait(delayDur)
 
-    fixation()
-    kb.clock.reset()  # timer (re)starts
-    trialClock.reset()
-
-    if cond[iTrial] == 0:#left
-        direction[iTrial] = 0
-        stimulus_left()
-    elif cond[iTrial] == 1:
-        stimulus_right()
-        direction[iTrial] = 180
-    elif cond[iTrial] == 3:
-        stimulus_chaos()
+    if cond[iTrial] == 0: # left
         direction[iTrial] = -1
-    elif cond[iTrial] == 2:
-        random_index = random.randrange(320)
-        direction[iTrial] = random_index
-        stimulus_random(random_index)
-
-    presses = event.waitKeys(keyList=["left", "right", "q"], timeStamped=trialClock)
-    if presses[0] == "left":
-        choice[iTrial] = -1
-    elif presses[0] == "right":
-        choice[iTrial] = 1
-    elif presses[0] == "q":
+        stimType [iTrial]= 1 # coherent stim
+        dir2show = 180
+        showFun = showCohDots
+    elif cond[iTrial] == 1: # right
+        direction[iTrial] = 1 # right
+        stimType [iTrial]= 1 # coherent stim
+        dir2show = 0
+        showFun = showCohDots
+    elif cond[iTrial] == 3:        
+        direction[iTrial] = -1 # left
+        stimType [iTrial]= 2 # chaos stim
+        dir2show = 180
+        showFun = showChaosDots
+    elif cond[iTrial] == 4:
+        direction[iTrial] =  1 # right
+        dir2show = 0
+        stimType [iTrial]= 2 # chaos stim
+        showFun = showChaosDots
+    
+    # show the motion stimulus
+    rt, choice_tmp = showFun(dir=dir2show)
+    
+    # record data
+    RT[iTrial]=rt
+    choice[iTrial]=choice_tmp
+    
+    if wanttoquick:
         core.quit()
-    reaction_time = trialClock.getLastResetTime()
+    
+    
+"""
 
-    f = open('numbers2.csv', 'a')
-    with f:
-         writer = csv.writer(f)
-         writer.writerow([iTrial,direction_random[iTrial], choice[iTrial], reaction_time])
-  # ns.sync()
-  # ns.SendSimpleTimestampedEvent(b'0051')"""
-stimulus_chaos(direction)
+XYpos = createChaosStim(dir=-1)
+showChaosStim(XYpos)
+myWin.flip()
+showCohDots(dir=0)
 
-myWin.close()
-core.quit()
+# ====cleanup and save data to csv======
