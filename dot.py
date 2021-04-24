@@ -1,3 +1,15 @@
+"""
+history:
+   2021/04/24 RYZ rewrite the position
+
+To do:
+1. figure out how to accurately recor reaction time
+2. how to save data into a CSV file
+3. test connection to NetStation
+"""
+
+ 
+
 from psychopy import core, monitors
 from psychopy import visual, event, logging
 from psychopy.tools.coordinatetools import pol2cart, cart2pol
@@ -6,6 +18,7 @@ from psychopy.visual import circle
 import numpy as np
 from psychopy.hardware import keyboard
 import pandas as pd
+from functools import partial
 #from egi import simple as egi
 
 #To send markers, we can use egi package or use pylsl package
@@ -45,8 +58,7 @@ mon.setWidth(52.71) # cm
 myWin = visual.Window([1000, 1000], units='deg',monitor=mon, color=(-1, -1, -1), checkTiming=True)
 fps = myWin.getActualFrameRate()
 kb = keyboard.Keyboard() # create kb object
-globalClock = core.Clock() # global Clock
-respClock = core.Clock()
+event.globalKeys['q']=core.quit # global quit
 
 # let's do some calculation before going further
 speedFrame = speedDeg/fps # how many deg/frame
@@ -59,7 +71,7 @@ nTrials = nTrialsPerCond * len(dirRange) * len(stimDir)
 cond = np.arange(nTrials)
 cond = cond %(len(dirRange) * len(stimDir))
 np.random.shuffle(cond)
-direction, stimType, RT, choice, = [np.empty(nTrials) for _ in range(4)]
+direction, stimType, RT, choice = [np.empty(nTrials) for _ in range(4)]
 
 #  ====== define stimulus components =======
 # define fixation
@@ -98,7 +110,7 @@ def showFixation():
     core.wait(1)
 
 # calculate chaos dots position
-def createChaosStim(dir=0):
+def computeChaosPos(dir=0):
     if dir == -1: # left
         directionRange1 = [-180, -20]
         directionRange2 = [20, 180]
@@ -131,7 +143,7 @@ def createChaosStim(dir=0):
     return XYpos
 
 # show chaos stim
-def showChaosStim(XYpos):
+def showChaosDots(XYpos):
     nFrame = XYpos.shape[-1]
     for iFrame in range(nFrame):
         chaosDots.setXYs(XYpos[:,:,iFrame])
@@ -145,7 +157,6 @@ def showChaosStim(XYpos):
 
 
 
-"""
 # do it!!!
 #  =========== main experiment loop ========
 kb.clock.reset() # reset clock
@@ -154,46 +165,46 @@ for iTrial in range(nTrials):
     
     # draw fixation
     showFixation()
-    # delay
-    core.wait(delayDur)
 
+    # add 1000ms delay while calculating stim
+    ISI = StaticPeriod(screenHz=fps)
+    ISI.start(delayDur)  # start a period of 0.5s
+    ISI.complete()  # finish the 0.5s, taking into account one 60Hz frame
     if cond[iTrial] == 0: # left
         direction[iTrial] = -1
         stimType [iTrial]= 1 # coherent stim
-        dir2show = 180
-        showFun = showCohDots
+        showFun = partial(showCohDots, dir=180)
     elif cond[iTrial] == 1: # right
         direction[iTrial] = 1 # right
         stimType [iTrial]= 1 # coherent stim
         dir2show = 0
-        showFun = showCohDots
+        showFun = partial(showCohDots, dir=0)
     elif cond[iTrial] == 3:        
         direction[iTrial] = -1 # left
         stimType [iTrial]= 2 # chaos stim
-        dir2show = 180
-        showFun = showChaosDots
+        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=-1))
     elif cond[iTrial] == 4:
         direction[iTrial] =  1 # right
         dir2show = 0
         stimType [iTrial]= 2 # chaos stim
-        showFun = showChaosDots
-    
+        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=1))
+    ISI.complete()  # finish the delay period
+
     # show the motion stimulus
-    rt, choice_tmp = showFun(dir=dir2show)
+    showFun(dir=dir2show)
     
     # record data
     RT[iTrial]=rt
     choice[iTrial]=choice_tmp
     
-    if wanttoquick:
-        core.quit()
     
     
-"""
 
-XYpos = createChaosStim(dir=-1)
-showChaosStim(XYpos)
+# test
+XYpos = computeChaosPos(dir=-1)
+showChaosDots(XYpos)
 myWin.flip()
 showCohDots(dir=0)
 
 # ====cleanup and save data to csv======
+# we want to save direction, stimType, RT, choice into a CSV file
