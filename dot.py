@@ -10,8 +10,8 @@ To do:
 
  
 
-from psychopy import core, monitors
-from psychopy import visual, event, logging
+from psychopy import core, monitors, clock
+from psychopy import visual, event
 from psychopy.tools.coordinatetools import pol2cart, cart2pol
 from psychopy.tools import monitorunittools
 from psychopy.visual import circle
@@ -57,8 +57,11 @@ mon.setSizePix([1920, 1080])
 mon.setWidth(52.71) # cm
 myWin = visual.Window([1000, 1000], units='deg',monitor=mon, color=(-1, -1, -1), checkTiming=True)
 fps = myWin.getActualFrameRate()
+
+event.globalKeys.clear()
+event.globalKeys.add(key='q', func=core.quit) # global quit
+globalClock = clock.Clock()
 kb = keyboard.Keyboard() # create kb object
-event.globalKeys['q']=core.quit # global quit
 
 # let's do some calculation before going further
 speedFrame = speedDeg/fps # how many deg/frame
@@ -94,15 +97,23 @@ def showCohDots(dir=0):
     core.wait(np.random.rand()+1) # stay static 1-2s
     
     # show moving stim
-    cohDots.speed=speedFrame# reset speed
-    #kb.start() # keyboard start recoding
-    flipStamp = np.empty(maxFrames)
+    cohDots.speed=speedFrame# reset speed per frame
+    kb.clock.reset() # reset the keyboard clock
+    kb.start() # keyboard start recoding
     for i in range(maxFrames): # 
         fixation.draw()
         cohDots.draw()
-        flipStamp[i]=myWin.flip()    
-    #kb.stop() # keyboard stop recoding 
-    return flipStamp
+        myWin.flip()
+        keys=kb.getKeys(keysList=['left','right'])
+        if keys:
+            break
+    if not keys:
+        keys=kb.waitKeys(keysList=['left','right']) # still waiting after stimulus
+    kb.stop()
+    
+    rt = keys[0].rt
+    cho=-1 if keys[0].name=='left' else 1
+    return rt, cho
 # show initial Fixation
 def showFixation(): 
     fixation.draw()
@@ -145,16 +156,23 @@ def computeChaosPos(dir=0):
 # show chaos stim
 def showChaosDots(XYpos):
     nFrame = XYpos.shape[-1]
+    kb.clock.reset() # reset the keyboard clock
+    kb.start() # keyboard start recoding
     for iFrame in range(nFrame):
         chaosDots.setXYs(XYpos[:,:,iFrame])
         chaosDots.draw()
         myWin.flip()
-
+        keys=kb.getKeys(keyList=['left','right'])
+        if keys:
+            break
+    if not keys:
+        keys=kb.waitKeys(keyList=['left','right'])
+    rt = keys[0].rt
+    cho=-1 if keys[0].name=='left' else 1
+    return rt, cho
     
 
 # ======= connect and setup NetStation====
-
-
 
 
 # do it!!!
@@ -167,7 +185,7 @@ for iTrial in range(nTrials):
     showFixation()
 
     # add 1000ms delay while calculating stim
-    ISI = StaticPeriod(screenHz=fps)
+    ISI = clock.StaticPeriod(screenHz=fps)
     ISI.start(delayDur)  # start a period of 0.5s
     ISI.complete()  # finish the 0.5s, taking into account one 60Hz frame
     if cond[iTrial] == 0: # left
@@ -191,15 +209,12 @@ for iTrial in range(nTrials):
     ISI.complete()  # finish the delay period
 
     # show the motion stimulus
-    showFun(dir=dir2show)
+    rt, cho=showFun(dir=dir2show)
     
-    # record data
+    # save data for this trial
     RT[iTrial]=rt
-    choice[iTrial]=choice_tmp
+    choice[iTrial]=cho
     
-    
-    
-
 # test
 XYpos = computeChaosPos(dir=-1)
 showChaosDots(XYpos)
