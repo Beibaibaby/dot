@@ -1,10 +1,11 @@
-"""
-history:
-   2021/04/24 RYZ rewrite the position
+
+'''
+History:
+    2021/04/25 RYZ add reaction time and data
+    2021/04/24 RYZ rewrite the position
 To do:
-2. how to save data into a CSV file
 3. test connection to NetStation
-"""
+'''
 
 from psychopy import core, monitors, clock
 from psychopy import visual, event
@@ -13,10 +14,15 @@ from psychopy.tools import monitorunittools
 from psychopy.visual import circle
 import numpy as np
 from psychopy.hardware import keyboard
-import pandas as pd
 from functools import partial
 import csv
+from time import localtime, strftime
+import pickle as pkl
 
+# ======= parameter you want to change ========
+subjID = 'RYZ' # initials of the subject, to save data
+wantEEG = False # whether to use EEG
+wantSave = True # save data or not
 # from egi import simple as egi
 
 # To send markers, we can use egi package or use pylsl package
@@ -27,14 +33,6 @@ info = StreamInfo(name='my_stream_name', type='Markers', channel_count=1,
 # Initialize the stream.
 outlet = StreamOutlet(info)
 """
-
-"""
-ms_localtime = egi.ms_localtime
-ns = egi.Netstation()
-ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
-ns.BeginSession()
-ns.sync()
-ns.StartRecording()"""
 
 # ================ exp setting ==================
 dirRange = [0, 320]
@@ -115,13 +113,11 @@ def showCohDots(dir=0):
     cho = -1 if keys[0].name == 'left' else 1
     return rt, cho
 
-
 # show initial Fixation
 def showFixation():
     fixation.draw()
     myWin.flip()
     core.wait(1)
-
 
 # calculate chaos dots position
 def computeChaosPos(dir=0):
@@ -156,7 +152,6 @@ def computeChaosPos(dir=0):
 
     return XYpos
 
-
 # show chaos stim
 def showChaosDots(XYpos):
     nFrame = XYpos.shape[-1]
@@ -176,18 +171,16 @@ def showChaosDots(XYpos):
     return rt, cho
 
 
-# ======= connect and setup NetStation====
-# =======open a csv
-f = open('data.csv', 'w')
-with f:
-    writer = csv.writer(f)
-    writer.writerow(['number_Trial', 'direction','stimType','Choice','RT'])
-
+if wantEEG:
+    ms_localtime = egi.ms_localtime
+    ns = egi.Netstation()
+    ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
+    ns.BeginSession()
+    ns.sync()
+    ns.StartRecording()
 
 # do it!!!
 #  =========== main experiment loop ========
-kb.clock.reset()  # reset clock
-wanttoquick = False
 for iTrial in range(nTrials):
 
     # draw fixation
@@ -204,7 +197,6 @@ for iTrial in range(nTrials):
     elif cond[iTrial] == 1:  # right
         direction[iTrial] = 1  # right
         stimType[iTrial] = 1  # coherent stim
-        dir2show = 0
         showFun = partial(showCohDots, dir=0)
     elif cond[iTrial] == 3:
         direction[iTrial] = -1  # left
@@ -212,7 +204,6 @@ for iTrial in range(nTrials):
         showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=-1))
     elif cond[iTrial] == 4:
         direction[iTrial] = 1  # right
-        dir2show = 0
         stimType[iTrial] = 2  # chaos stim
         showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=1))
     ISI.complete()  # finish the delay period
@@ -225,13 +216,39 @@ for iTrial in range(nTrials):
     choice[iTrial] = cho
 
 
-
-
 # ====cleanup and save data to csv======
-# we want to save direction, stimType, RT, choice into a CSV file
-for iTrial in range(nTrials):
-  f = open('data.csv', 'a')
-  with f:
-    writer = csv.writer(f)
-    writer.writerow(nTrials+1,direction[iTrial],stimType[iTrial],choice[iTrial],RT[iTrial])
+if wantSave: # save data
+    # we want to save direction, stimType, RT, choice into a CSV file
+    fileName = strftime('%Y%m%d%H%M%S', localtime())
+    fileName = f'{fileName}_{subjID}'
+    # save some key variables into an excel file 
+    f = open([fileName, 'csv'], 'w')
+    with f:
+        writer = csv.writer(f)
+        writer.writerow(['number_Trial', 'direction','stimType','Choice','RT'])
+    for iTrial in range(nTrials):
+        f = open([fileName, 'csv'], 'a')
+        with f:
+            writer = csv.writer(f)
+            writer.writerow(iTrial+1,direction[iTrial],stimType[iTrial],choice[iTrial],RT[iTrial])
 
+    # Save more information into a numpy file 
+    expInfo = '''
+        direction: -1,left; 1, right \n
+        stimType: 1, coherent dots; 2, chaos dots \n
+        choice: -1, left; 1, right \n
+        RT in secs related to onset of the motion stimulus
+    '''
+    # create a result dict
+    results={
+        'subjID': subjID,
+        'time': strftime('%Y%m%d%H%M%S', localtime()),
+        'expInfo': expInfo,
+        'diretion':direction,
+        'stimType':stimType,
+        'choice': choice,
+        'RT': RT
+    }
+    pklObj = open(fileName, 'wb')
+    pkl.dump(results, pklObj)
+    pklObj.close()
