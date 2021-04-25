@@ -2,7 +2,6 @@
 history:
    2021/04/24 RYZ rewrite the position
 To do:
-1. figure out how to accurately recor reaction time
 2. how to save data into a CSV file
 3. test connection to NetStation
 """
