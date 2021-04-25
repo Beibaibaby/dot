@@ -42,8 +42,8 @@ ns.StartRecording()"""
 dirRange = [0,320]
 stimDir= [-1, 1] # -1, left;1, right
 fieldRadius = 10 # in deg
-nTrialsPerCond =  5 
-maxDur =  5 # sec, longest stim duration or a key press comes first
+nTrialsPerCond =  1
+maxDur =  20 # sec, longest stim duration or a key press comes first
 delayDur = 1 # sec, delay of stim onset afte fixation
 staticDur = [1, 2] # stimulus being static for 1-2s
 speedDeg = 10.0 # deg/sec, shall convert to deg/frame
@@ -53,7 +53,7 @@ iti = 2 # intertrial interval
 # ======= setup hardwares =======
 mon = monitors.Monitor('hospital6')
 mon.setDistance(57) # View distance cm
-mon.setSizePix([1920, 1080])
+mon.setSizePix([1920, 1080]) # pixels
 mon.setWidth(52.71) # cm
 myWin = visual.Window([1000, 1000], units='deg',monitor=mon, color=(-1, -1, -1), checkTiming=True)
 fps = myWin.getActualFrameRate()
@@ -80,8 +80,8 @@ direction, stimType, RT, choice = [np.empty(nTrials) for _ in range(4)]
 # define fixation
 fixation = circle.Circle(win=myWin, units='deg', radius=0.25, lineColor=0, fillColor=0)
 # define coherent dots 
-cohDots = visual.DotStim(win=myWin, nDots=nDots, units='deg', fieldSize=[fieldRadius*2, fieldRadius*2], fieldShape='circle', coherence=1, dotSize=dotSizePix, dotLife=-1)
-# Create the stimulus array
+cohDots = visual.DotStim(win=myWin, nDots=nDots, units='deg', fieldSize=[fieldRadius*2, fieldRadius*2], fieldShape='circle', coherence=1, dotSize=dotSizePix, dotLife=-1) # note here dotSiz is in pixels
+# define stimulus array
 chaosDots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle', \
                                    elementMask='circle', nElements=nDots, sizes=dotSize, units='deg', \
                                    fieldSize=[fieldRadius*2, fieldRadius*2]) # note here dotSize is in deg
@@ -104,11 +104,11 @@ def showCohDots(dir=0):
         fixation.draw()
         cohDots.draw()
         myWin.flip()
-        keys=kb.getKeys(keysList=['left','right'])
+        keys=kb.getKeys(keyList=['left','right'])
         if keys:
             break
     if not keys:
-        keys=kb.waitKeys(keysList=['left','right']) # still waiting after stimulus
+        keys=kb.waitKeys(keyList=['left','right']) # still waiting after stimulus
     kb.stop()
     
     rt = keys[0].rt
@@ -123,24 +123,31 @@ def showFixation():
 # calculate chaos dots position
 def computeChaosPos(dir=0):
     if dir == -1: # left
-        directionRange1 = [-180, -20]
-        directionRange2 = [20, 180]
+        directionRange1 = [20, 180]
+        directionRange2 = [180, 340]
     elif dir == 1: # right
-        directionRange1 = [-160, 0]
-        directionRange2 = [0, 160]
+        directionRange1 = [0, 160]
+        directionRange2 = [200, 360]
 
     # Initial parameters
     dotsTheta = np.random.rand(nDots) * 360 # deg
     dotsRadius = (np.random.rand(nDots) ** 0.5) * fieldRadius # in deg
     dotsX, dotsY = pol2cart(dotsTheta, dotsRadius) # in deg
+
+#    # choose direction
+    #dir1 = np.random.rand(int(nDots / 2)) * (directionRange1[1] - directionRange1[0]) + directionRange1[0]
+    #dir2 = np.random.rand(int(nDots / 2)) * (directionRange2[1] - directionRange2[0]) + directionRange2[0]
+    #dirAll = np.hstack((dir1, dir2))
+    
+    #dirAll  = np.ones(nDots) * -90
     XYpos = np.empty((nDots, 2, maxFrames))
     for iFrame in range(maxFrames):
-        # choose direction
+        # # choose direction
         dir1 = np.random.rand(int(nDots / 2)) * (directionRange1[1] - directionRange1[0]) + directionRange1[0]
         dir2 = np.random.rand(int(nDots / 2)) * (directionRange2[1] - directionRange2[0]) + directionRange2[0]
         dirAll = np.hstack((dir1, dir2))
         # update position
-        dotsX, dotsY = dotsX + speedFrame * np.cos(dirAll), dotsY + speedFrame*np.sin(dirAll)
+        dotsX, dotsY = dotsX + speedFrame * np.cos(dirAll*np.pi/180), dotsY + speedFrame*np.sin(dirAll*np.pi/180)
         # convert catesian to polar
         dotsTheta, dotsRadius = cart2pol(dotsX, dotsY)        
         outFieldDots = (dotsRadius > fieldRadius) # judge dots outside
@@ -161,6 +168,7 @@ def showChaosDots(XYpos):
     for iFrame in range(nFrame):
         chaosDots.setXYs(XYpos[:,:,iFrame])
         chaosDots.draw()
+        fixation.draw()
         myWin.flip()
         keys=kb.getKeys(keyList=['left','right'])
         if keys:
@@ -177,49 +185,46 @@ def showChaosDots(XYpos):
 
 # do it!!!
 #  =========== main experiment loop ========
-kb.clock.reset() # reset clock
-wanttoquick = False
-for iTrial in range(nTrials): 
+# for iTrial in range(nTrials): 
     
-    # draw fixation
-    showFixation()
+#     # draw fixation
+#     showFixation()
 
-    # add 1000ms delay while calculating stim
-    ISI = clock.StaticPeriod(screenHz=fps)
-    ISI.start(delayDur)  # start a period of 0.5s
-    ISI.complete()  # finish the 0.5s, taking into account one 60Hz frame
-    if cond[iTrial] == 0: # left
-        direction[iTrial] = -1
-        stimType [iTrial]= 1 # coherent stim
-        showFun = partial(showCohDots, dir=180)
-    elif cond[iTrial] == 1: # right
-        direction[iTrial] = 1 # right
-        stimType [iTrial]= 1 # coherent stim
-        dir2show = 0
-        showFun = partial(showCohDots, dir=0)
-    elif cond[iTrial] == 3:        
-        direction[iTrial] = -1 # left
-        stimType [iTrial]= 2 # chaos stim
-        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=-1))
-    elif cond[iTrial] == 4:
-        direction[iTrial] =  1 # right
-        dir2show = 0
-        stimType [iTrial]= 2 # chaos stim
-        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=1))
-    ISI.complete()  # finish the delay period
+#     # add 1000ms delay while calculating stim
+#     ISI = clock.StaticPeriod(screenHz=fps)
+#     ISI.start(delayDur)  # start a period of 0.5s
+#     if cond[iTrial] == 0: # left
+#         direction[iTrial] = -1
+#         stimType [iTrial]= 1 # coherent stim
+#         showFun = partial(showCohDots, dir=180)
+#     elif cond[iTrial] == 1: # right
+#         direction[iTrial] = 1 # right
+#         stimType [iTrial]= 1 # coherent stim
+#         dir2show = 0
+#         showFun = partial(showCohDots, dir=0)
+#     elif cond[iTrial] == 2:        
+#         direction[iTrial] = -1 # left
+#         stimType [iTrial]= 2 # chaos stim
+#         showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=-1))
+#     elif cond[iTrial] == 3:
+#         direction[iTrial] =  1 # right
+#         dir2show = 0
+#         stimType [iTrial]= 2 # chaos stim
+#         showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=1))
+#     ISI.complete()  # finish the delay period
 
-    # show the motion stimulus
-    rt, cho=showFun(dir=dir2show)
+#     # show the motion stimulus
+#     rt, cho=showFun(dir=dir2show)
     
-    # save data for this trial
-    RT[iTrial]=rt
-    choice[iTrial]=cho
+#     # save data for this trial
+#     RT[iTrial]=rt
+#     choice[iTrial]=cho
     
 # test
 XYpos = computeChaosPos(dir=-1)
 showChaosDots(XYpos)
 myWin.flip()
-showCohDots(dir=0)
+#showCohDots(dir=30)
 
 # ====cleanup and save data to csv======
 # we want to save direction, stimType, RT, choice into a CSV file
