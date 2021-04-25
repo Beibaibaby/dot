@@ -33,6 +33,13 @@ info = StreamInfo(name='my_stream_name', type='Markers', channel_count=1,
 # Initialize the stream.
 outlet = StreamOutlet(info)
 """
+if wantEEG:
+    ms_localtime = egi.ms_localtime
+    ns = egi.Netstation()
+    ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
+    ns.BeginSession()
+    ns.sync()
+    ns.StartRecording()
 
 # ================ exp setting ==================
 dirRange = [0, 320]
@@ -92,6 +99,8 @@ def showCohDots(dir=0):
     fixation.draw()
     cohDots.draw()
     myWin.flip()
+    if wantEEG:
+        sendTrigger()
     core.wait(np.random.rand() + 1)  # stay static 1-2s
 
     # show moving stim
@@ -102,6 +111,8 @@ def showCohDots(dir=0):
         fixation.draw()
         cohDots.draw()
         myWin.flip()
+        if i==0 and wantEEG:
+            sendTrigger()
         keys = kb.getKeys(keysList=['left', 'right'])
         if keys:
             break
@@ -117,6 +128,8 @@ def showCohDots(dir=0):
 def showFixation():
     fixation.draw()
     myWin.flip()
+    if wantEEG:
+        sendTrigger()
     core.wait(1)
 
 # calculate chaos dots position
@@ -161,6 +174,8 @@ def showChaosDots(XYpos):
         chaosDots.setXYs(XYpos[:, :, iFrame])
         chaosDots.draw()
         myWin.flip()
+        if iFrame==0 and wantEEG:
+            sendTrigger()
         keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
@@ -169,15 +184,6 @@ def showChaosDots(XYpos):
     rt = keys[0].rt
     cho = -1 if keys[0].name == 'left' else 1
     return rt, cho
-
-
-if wantEEG:
-    ms_localtime = egi.ms_localtime
-    ns = egi.Netstation()
-    ns.connect('10.10.10.42', 55513) # sample address and port -- change according to your network settings
-    ns.BeginSession()
-    ns.sync()
-    ns.StartRecording()
 
 # do it!!!
 #  =========== main experiment loop ========
@@ -209,7 +215,7 @@ for iTrial in range(nTrials):
     ISI.complete()  # finish the delay period
 
     # show the motion stimulus
-    rt, cho = showFun(dir=dir2show)
+    rt, cho = showFun()
 
     # save data for this trial
     RT[iTrial] = rt
