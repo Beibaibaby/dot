@@ -204,11 +204,12 @@ def showChaosDots(XYpos):
 instrText = \
     '欢迎参加这个实验!\n \
     您将在屏幕上看到一系列运动的点\n \
-    一旦这些点开始运动您需要按方向键(左/右)来判断整体的运动方向。\n \
+    一旦这些点开始运动, \n \
+    您需要按方向键(左/右)来判断这些点整体的运动方向。\n \
     您可以不等运动点消失直接按键, 每次您必须要按键反应，实验才能继续。\n \
     请您又快又准确的反应! \n \
     如果您理解了以上的话，请按空格键继续'
-tex = visual.TextStim(win=myWin, text=instrText, font='SimHei')
+tex = visual.TextStim(win=myWin, text=instrText, font='SimHei', wrapWidth=25)
 tex.draw()
 myWin.flip()
 kb.start()
