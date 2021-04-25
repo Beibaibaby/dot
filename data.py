@@ -182,7 +182,7 @@ def showChaosDots(XYpos):
 f = open('data.csv', 'w')
 with f:
     writer = csv.writer(f)
-    writer.writerow(['rt', 'cho'])
+    writer.writerow(['number_Trial', 'direction','stimType','Choice','RT'])
 
 
 # do it!!!
@@ -224,21 +224,15 @@ for iTrial in range(nTrials):
     # save data for this trial
     RT[iTrial] = rt
     choice[iTrial] = cho
-# test
-XYpos = computeChaosPos(dir=-1)
-showChaosDots(XYpos)
-myWin.flip()
-showCohDots(dir=0)
+
 
 
 
 # ====cleanup and save data to csv======
 # we want to save direction, stimType, RT, choice into a CSV file
-for iTrial in range(nTrials)
-   f = open('data.csv', 'a')
-   with f:
-        writer = csv.writer(f)
-        writer.writerow(RT[iTrial],choice[iTrial])
-
-
+for iTrial in range(nTrials):
+  f = open('data.csv', 'a')
+  with f:
+    writer = csv.writer(f)
+    writer.writerow(nTrials+1,direction[iTrial],stimType[iTrial],choice[iTrial],RT[iTrial])
 
