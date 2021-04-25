@@ -1,19 +1,20 @@
-
 '''
+A RDK EEG experiment
+
 History:
+    2021/04/25 RYZ use trial handler to deal with trials
     2021/04/25 RYZ add reaction time and data
     2021/04/24 RYZ rewrite the position
 To do:
-3. test connection to NetStation
+1. test connection to NetStation
 '''
 
-from psychopy import core, monitors, clock
-from psychopy import visual, event
+from psychopy import core, monitors, clock, visual, event, data
 from psychopy.tools.coordinatetools import pol2cart, cart2pol
 from psychopy.tools import monitorunittools
+from psychopy.hardware import keyboard
 from psychopy.visual import circle
 import numpy as np
-from psychopy.hardware import keyboard
 from functools import partial
 import csv
 from time import localtime, strftime
@@ -22,7 +23,7 @@ import pickle as pkl
 # ======= parameter you want to change ========
 subjID = 'RYZ' # initials of the subject, to save data
 wantEEG = False # whether to use EEG
-wantSave = True # save data or not
+wantSave = False # save data or not
 # from egi import simple as egi
 
 # To send markers, we can use egi package or use pylsl package
@@ -45,9 +46,9 @@ if wantEEG:
 dirRange = [0, 320]
 stimDir = [-1, 1]  # -1, left;1, right
 fieldRadius = 10  # in deg
-nTrialsPerCond = 5
+nTrialsPerCond = 1
 maxDur = 5  # sec, longest stim duration or a key press comes first
-delayDur = 1  # sec, delay of stim onset afte fixation
+delayDur = 1  # sec, delay of stim onset after fixation
 staticDur = [1, 2]  # stimulus being static for 1-2s
 speedDeg = 10.0  # deg/sec, shall convert to deg/frame
 dotDensity = 0.6  # dots/deg^2
@@ -73,27 +74,29 @@ dotSizePix = monitorunittools.deg2pix(dotSize, mon)  # calculate dotSizePix for 
 nDots = round(np.pi * fieldRadius ** 2 * dotDensity)  # calcuate nDots
 maxFrames = round(maxDur / myWin.monitorFramePeriod)
 
-nTrials = nTrialsPerCond * len(dirRange) * len(stimDir)
-cond = np.arange(nTrials)
-cond = cond % (len(dirRange) * len(stimDir))
-np.random.shuffle(cond)
-direction, stimType, RT, choice = [np.empty(nTrials) for _ in range(4)]
+# define trial handler
+stimList = []
+for t in dirRange:
+    for d in stimDir:
+        stimList.append({'dirRange':t, 'direction':d})
+trials=data.TrialHandler(trialList=stimList, nReps=nTrialsPerCond)
 
 #  ====== define stimulus components =======
 # define fixation
 fixation = circle.Circle(win=myWin, units='deg', radius=0.25, lineColor=0, fillColor=0)
 # define coherent dots 
 cohDots = visual.DotStim(win=myWin, nDots=nDots, units='deg', fieldSize=[fieldRadius * 2, fieldRadius * 2],
-                         fieldShape='circle', coherence=1, dotSize=dotSizePix, dotLife=-1)
-# Create the stimulus array
+                         fieldShape='circle', coherence=1, dotSize=dotSizePix, dotLife=-1) # note here dotSize is in pixels
+# Create stimulus array
 chaosDots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle', \
                                     elementMask='circle', nElements=nDots, sizes=dotSize, units='deg', \
                                     fieldSize=[fieldRadius * 2, fieldRadius * 2])  # note here dotSize is in deg
 
-
 # show left/right coherent dots
-def showCohDots(dir=0):
-    cohDots.dir = dir  # dir=0, right; dir=180, left
+def showCohDots(dir=-1):        
+    
+    cohDots.dir = 180 if dir==-1 else 0
+
     # show static stim
     cohDots.speed = 0
     fixation.draw()
@@ -113,11 +116,11 @@ def showCohDots(dir=0):
         myWin.flip()
         if i==0 and wantEEG:
             sendTrigger()
-        keys = kb.getKeys(keysList=['left', 'right'])
+        keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
     if not keys:
-        keys = kb.waitKeys(keysList=['left', 'right'])  # still waiting after stimulus
+        keys = kb.waitKeys(keyList=['left', 'right'])  # still waiting after stimulus
     kb.stop()
 
     rt = keys[0].rt
@@ -133,13 +136,13 @@ def showFixation():
     core.wait(1)
 
 # calculate chaos dots position
-def computeChaosPos(dir=0):
+def computeChaosPos(dir=-1):
     if dir == -1:  # left
-        directionRange1 = [-180, -20]
-        directionRange2 = [20, 180]
+        directionRange1 = [20, 180]
+        directionRange2 = [180, 340]
     elif dir == 1:  # right
-        directionRange1 = [-160, 0]
-        directionRange2 = [0, 160]
+        directionRange1 = [0, 160]
+        directionRange2 = [200, 360]
 
     # Initial parameters
     dotsTheta = np.random.rand(nDots) * 360  # deg
@@ -152,7 +155,7 @@ def computeChaosPos(dir=0):
         dir2 = np.random.rand(int(nDots / 2)) * (directionRange2[1] - directionRange2[0]) + directionRange2[0]
         dirAll = np.hstack((dir1, dir2))
         # update position
-        dotsX, dotsY = dotsX + speedFrame * np.cos(dirAll), dotsY + speedFrame * np.sin(dirAll)
+        dotsX, dotsY = dotsX + speedFrame * np.cos(dirAll*np.pi/180), dotsY + speedFrame * np.sin(dirAll*np.pi/180)
         # convert catesian to polar
         dotsTheta, dotsRadius = cart2pol(dotsX, dotsY)
         outFieldDots = (dotsRadius > fieldRadius)  # judge dots outside
@@ -168,11 +171,23 @@ def computeChaosPos(dir=0):
 # show chaos stim
 def showChaosDots(XYpos):
     nFrame = XYpos.shape[-1]
+    
+    # show static stim
+    chaosDots.setXYs(XYpos[:, :, 0])
+    fixation.draw()
+    chaosDots.draw()
+    myWin.flip()
+    if wantEEG:
+        sendTrigger()
+    core.wait(np.random.rand() + 1)  # stay static 1-2s
+
+    # show moving stim
     kb.clock.reset()  # reset the keyboard clock
     kb.start()  # keyboard start recoding
     for iFrame in range(nFrame):
         chaosDots.setXYs(XYpos[:, :, iFrame])
         chaosDots.draw()
+        fixation.draw()
         myWin.flip()
         if iFrame==0 and wantEEG:
             sendTrigger()
@@ -185,41 +200,44 @@ def showChaosDots(XYpos):
     cho = -1 if keys[0].name == 'left' else 1
     return rt, cho
 
+# define welcome instruction interface
+instrText = \
+    '欢迎参加这个实验!\n \
+    您将在屏幕上看到一系列运动的点\n \
+    一旦这些点开始运动您需要按方向键(左/右)来判断整体的运动方向。\n \
+    您可以不等运动点消失直接按键, 每次您必须要按键反应，实验才能继续。\n \
+    请您又快又准确的反应! \n \
+    如果您理解了以上的话，请按空格键继续'
+tex = visual.TextStim(win=myWin, text=instrText, font='SimHei')
+tex.draw()
+myWin.flip()
+kb.start()
+kb.waitKeys(keyList=['space'], waitRelease=True)
+kb.stop()
+myWin.flip()
+
+
 # do it!!!
 #  =========== main experiment loop ========
-for iTrial in range(nTrials):
-
-    # draw fixation
+for trial in trials:
+    # show fixation
     showFixation()
-
     # add 1000ms delay while calculating stim
     ISI = clock.StaticPeriod(screenHz=fps)
     ISI.start(delayDur)  # start a period of 0.5s
-    ISI.complete()  # finish the 0.5s, taking into account one 60Hz frame
-    if cond[iTrial] == 0:  # left
-        direction[iTrial] = -1
-        stimType[iTrial] = 1  # coherent stim
-        showFun = partial(showCohDots, dir=180)
-    elif cond[iTrial] == 1:  # right
-        direction[iTrial] = 1  # right
-        stimType[iTrial] = 1  # coherent stim
-        showFun = partial(showCohDots, dir=0)
-    elif cond[iTrial] == 3:
-        direction[iTrial] = -1  # left
-        stimType[iTrial] = 2  # chaos stim
-        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=-1))
-    elif cond[iTrial] == 4:
-        direction[iTrial] = 1  # right
-        stimType[iTrial] = 2  # chaos stim
-        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=1))
+    if trial['dirRange'] == 0: # coherent dots 
+        showFun = partial(showCohDots, dir=trial['direction'])
+    elif trial['dirRange'] == 320: # chaos dots 
+        showFun = partial(showChaosDots, XYpos=computeChaosPos(dir=trial['direction']))
     ISI.complete()  # finish the delay period
 
-    # show the motion stimulus
+    # show the motion stimulus and get RT and choice
     rt, cho = showFun()
 
     # save data for this trial
-    RT[iTrial] = rt
-    choice[iTrial] = cho
+    trial.addData('RT', rt)
+    trial.addData('choice', cho)
+    trial.addData('correct', 1 if trials.data['choice'][trials.thisIndex]==trial['direction'] else 0)
 
 
 # ====cleanup and save data to csv======
@@ -227,34 +245,21 @@ if wantSave: # save data
     # we want to save direction, stimType, RT, choice into a CSV file
     fileName = strftime('%Y%m%d%H%M%S', localtime())
     fileName = f'{fileName}_{subjID}'
-    # save some key variables into an excel file 
-    f = open([fileName, 'csv'], 'w')
-    with f:
-        writer = csv.writer(f)
-        writer.writerow(['number_Trial', 'direction','stimType','Choice','RT'])
-    for iTrial in range(nTrials):
-        f = open([fileName, 'csv'], 'a')
-        with f:
-            writer = csv.writer(f)
-            writer.writerow(iTrial+1,direction[iTrial],stimType[iTrial],choice[iTrial],RT[iTrial])
 
     # Save more information into a numpy file 
     expInfo = '''
         direction: -1,left; 1, right \n
-        stimType: 1, coherent dots; 2, chaos dots \n
+        dirRange: 0, coherent dots; 320, chaos dots \n
         choice: -1, left; 1, right \n
         RT in secs related to onset of the motion stimulus
+        correct: 1, correct; 0, wrong
     '''
     # create a result dict
-    results={
+    trials.extraInfo={
         'subjID': subjID,
-        'time': strftime('%Y%m%d%H%M%S', localtime()),
+        'time': strftime('%Y-%m-%d-%H-%M-%S', localtime()),
         'expInfo': expInfo,
-        'diretion':direction,
-        'stimType':stimType,
-        'choice': choice,
-        'RT': RT
     }
-    pklObj = open(fileName, 'wb')
-    pkl.dump(results, pklObj)
-    pklObj.close()
+    trials.saveAsExcel(fileName, sheetName='rawData') # save data as excel
+    trials.saveAsPickle(fileName) # save data as pickle
+
