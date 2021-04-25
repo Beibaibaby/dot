@@ -224,10 +224,6 @@ for iTrial in range(nTrials):
     # save data for this trial
     RT[iTrial] = rt
     choice[iTrial] = cho
-    f = open('data.csv', 'a')
-    with f:
-        writer = csv.writer(f)
-        writer.writerow(RT[iTrial],choice[iTrial])
 # test
 XYpos = computeChaosPos(dir=-1)
 showChaosDots(XYpos)
@@ -238,3 +234,11 @@ showCohDots(dir=0)
 
 # ====cleanup and save data to csv======
 # we want to save direction, stimType, RT, choice into a CSV file
+for iTrial in range(nTrials)
+   f = open('data.csv', 'a')
+   with f:
+        writer = csv.writer(f)
+        writer.writerow(RT[iTrial],choice[iTrial])
+
+
+
