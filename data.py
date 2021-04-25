@@ -23,7 +23,7 @@ import pickle as pkl
 # ======= parameter you want to change ========
 subjID = 'RYZ' # initials of the subject, to save data
 wantEEG = False # whether to use EEG
-wantSave = False # save data or not
+wantSave = True # save data or not
 # from egi import simple as egi
 
 # To send markers, we can use egi package or use pylsl package
@@ -60,7 +60,7 @@ mon.setDistance(57)  # View distance cm
 mon.setSizePix([1920, 1080])
 mon.setWidth(52.71)  # cm
 myWin = visual.Window([1000, 1000], units='deg', monitor=mon, color=(-1, -1, -1), checkTiming=True)
-fps = myWin.getActualFrameRate()
+fps = myWin.getActualFrameRate() # sometimes this call fails...
 
 event.globalKeys.clear()
 event.globalKeys.add(key='q', func=core.quit)  # global quit
@@ -119,6 +119,7 @@ def showCohDots(dir=-1):
         keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
+    myWin.flip()
     if not keys:
         keys = kb.waitKeys(keyList=['left', 'right'])  # still waiting after stimulus
     kb.stop()
@@ -133,7 +134,6 @@ def showFixation():
     myWin.flip()
     if wantEEG:
         sendTrigger()
-    core.wait(1)
 
 # calculate chaos dots position
 def computeChaosPos(dir=-1):
@@ -194,6 +194,7 @@ def showChaosDots(XYpos):
         keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
+    myWin.flip()
     if not keys:
         keys = kb.waitKeys(keyList=['left', 'right'])
     rt = keys[0].rt
@@ -236,9 +237,9 @@ for trial in trials:
     rt, cho = showFun()
 
     # save data for this trial
-    trial.addData('RT', rt)
-    trial.addData('choice', cho)
-    trial.addData('correct', 1 if trials.data['choice'][trials.thisIndex]==trial['direction'] else 0)
+    trials.addData('RT', rt)
+    trials.addData('choice', cho)
+    trials.addData('correct', 1 if trials.data['choice'][trials.thisIndex]==trial['direction'] else 0)
 
 
 # ====cleanup and save data to csv======
@@ -261,6 +262,6 @@ if wantSave: # save data
         'time': strftime('%Y-%m-%d-%H-%M-%S', localtime()),
         'expInfo': expInfo,
     }
-    trials.saveAsExcel(fileName, sheetName='rawData') # save data as excel
-    trials.saveAsPickle(fileName) # save data as pickle
+    trials.saveAsExcel(fileName=fileName, sheetName='rawData') # save data as excel
+    trials.saveAsPickle(fileName=fileName) # save data as pickle
 
