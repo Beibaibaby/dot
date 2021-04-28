@@ -2,6 +2,7 @@
 A RDK EEG experiment
 
 History:
+    2021/04/26 RYZ use win.callOnFlip to improve trigger timing
     2021/04/25 RYZ use trial handler to deal with trials
     2021/04/25 RYZ add reaction time and data
     2021/04/24 RYZ rewrite the position
@@ -19,6 +20,8 @@ from functools import partial
 import csv
 from time import localtime, strftime
 import pickle as pkl
+
+from pyglet.gl.gl import GL_STENCIL_PASS_DEPTH_FAIL
 
 # ======= parameter you want to change ========
 subjID = 'RYZ' # initials of the subject, to save data
@@ -92,6 +95,11 @@ chaosDots = visual.ElementArrayStim(myWin, elementTex=None, fieldShape='circle',
                                     elementMask='circle', nElements=nDots, sizes=dotSize, units='deg', \
                                     fieldSize=[fieldRadius * 2, fieldRadius * 2])  # note here dotSize is in deg
 
+def sendTrigger(marker=''):
+    kb.clock.reset()
+    if wantEEG:
+        sendsth(marker)
+        
 # show left/right coherent dots
 def showCohDots(dir=-1):        
     
@@ -101,21 +109,21 @@ def showCohDots(dir=-1):
     cohDots.speed = 0
     fixation.draw()
     cohDots.draw()
-    myWin.flip()
-    if wantEEG:
-        sendTrigger()
+    myWin.callOnFlip(sendTrigger)
+    #myWin.callOnFlip(sendTrigger, marker)
     core.wait(np.random.rand() + 1)  # stay static 1-2s
 
     # show moving stim
     cohDots.speed = speedFrame  # reset speed per frame
-    kb.clock.reset()  # reset the keyboard clock
-    kb.start()  # keyboard start recoding
+    kb.start()
     for i in range(maxFrames):  #
         fixation.draw()
         cohDots.draw()
         myWin.flip()
-        if i==0 and wantEEG:
-            sendTrigger()
+        if i==0:
+            myWin.callOnFlip(sendTrigger)
+        else:
+            myWin.flip()
         keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
@@ -131,9 +139,7 @@ def showCohDots(dir=-1):
 # show initial Fixation
 def showFixation():
     fixation.draw()
-    myWin.flip()
-    if wantEEG:
-        sendTrigger()
+    myWin.callOnFlip(sendTrigger)
 
 # calculate chaos dots position
 def computeChaosPos(dir=-1):
@@ -176,27 +182,27 @@ def showChaosDots(XYpos):
     chaosDots.setXYs(XYpos[:, :, 0])
     fixation.draw()
     chaosDots.draw()
-    myWin.flip()
-    if wantEEG:
-        sendTrigger()
+    myWin.callOnFlip(sendTrigger, marker)
     core.wait(np.random.rand() + 1)  # stay static 1-2s
 
     # show moving stim
-    kb.clock.reset()  # reset the keyboard clock
     kb.start()  # keyboard start recoding
     for iFrame in range(nFrame):
         chaosDots.setXYs(XYpos[:, :, iFrame])
         chaosDots.draw()
         fixation.draw()
-        myWin.flip()
-        if iFrame==0 and wantEEG:
-            sendTrigger()
+        if iFrame==0:
+            myWin.callOnFlip(sendTrigger, marker) # send trigger stimulus onset
+        else:
+            myWin.flip()
         keys = kb.getKeys(keyList=['left', 'right'])
         if keys:
             break
     myWin.flip()
     if not keys:
         keys = kb.waitKeys(keyList=['left', 'right'])
+    kb.stop()  # keyboard start recoding
+    
     rt = keys[0].rt
     cho = -1 if keys[0].name == 'left' else 1
     return rt, cho
