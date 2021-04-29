@@ -269,5 +269,6 @@ if wantSave: # save data
         'time': strftime('%Y-%m-%d-%H-%M-%S', localtime()),
         'expInfo': expInfo,
     }
+    
     trials.saveAsExcel(fileName=fileName, sheetName='rawData') # save data as excel
     trials.saveAsPickle(fileName=fileName) # save data as pickle
