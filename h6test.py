@@ -1,7 +1,7 @@
 '''
 A RDK EEG experiment
 History:
-    2021/04/08 YLX bugs fixed and egi instructions 
+    2021/04/28 YLX bugs fixed and egi instructions 
     2021/04/26 RYZ use win.callOnFlip to improve trigger timing
     2021/04/25 RYZ use trial handler to deal with trials
     2021/04/25 RYZ add reaction time and data
