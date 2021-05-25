@@ -189,7 +189,7 @@ def computeChaosPos(dir=-1):
         XYpos[:, 0, iFrame] = dotsX
         XYpos[:, 1, iFrame] = dotsY
 
-    return XYpos.astype(np.int32)
+    return XYpos#.astype(np.int32)
 
 
 # show chaos stim
